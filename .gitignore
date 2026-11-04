@@ -1,0 +1,37 @@
+# 运行时数据不进版本库（保留在本地）
+__pycache__/
+*.pyc
+*.pyo
+.tmp/
+.codex-backups/
+.tools/
+
+# 密钥/环境
+.env
+.env.*
+!.env.example
+
+# 运行时日志与状态
+logs/
+state/
+
+# 数据缓存（体积大、可重建）
+data/cache/
+data/probe_latest.json
+
+# 系统杂项
+Thumbs.db
+desktop.ini
+*.log
+
+# Local account and deployment data
+runtime/
+reviews/
+monitoring/
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.db
+*.pem
+*.p12
+*.key

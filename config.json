@@ -1,0 +1,163 @@
+{
+  "_readme": "SOL 永续合约实时多因子信号系统 - 主配置。所有阈值都可以改；config/thresholds.json 由 scripts/calibrate.py 用真实历史分布自动生成，不要手改那个文件。",
+  "version": "1.0.0",
+  "account": {
+    "equity_usdt": 100.0,
+    "margin_mode": "cross",
+    "position_mode": "net",
+    "leverage_setting": 8,
+    "_leverage_note": "为什么是8x而不是5x：OKX 的杠杆设置会卡住『名义仓位上限 = 净值 × 杠杆』。周期缩短到5m后止损只有约0.35%，2%风险需要 2%/0.35%=5.7x 的名义，5x 会直接下单失败。规则：杠杆设置 ≥ 单笔风险% ÷ 最小止损%。8x 的爆仓距离是12.5%，仍比最窄止损宽30倍以上，安全。",
+    "max_concurrent_positions": 1,
+    "signal_creates_position": false,
+    "_signal_note": "必须保持 false。信号模式下『系统发出信号』≠『你真的下单了』；若设为 true，你每忽略一条信号台账就会凭空多出一个持仓，把『已持仓→不再发信号』的闸门锁死。真实成交后用 run.cmd --open 登记。",
+    "_warning_cross": "全仓模式下，账户内任何其他持仓都会共享这100u保证金，从而破坏本系统的风险计算。使用期间请勿在OKX账户内同时持有其他仓位。"
+  },
+  "risk": {
+    "risk_per_trade_pct": 2.0,
+    "daily_loss_limit_pct": 5.0,
+    "weekly_loss_limit_pct": 10.0,
+    "max_entries_per_day": 3,
+    "min_net_rr": 1.55,
+    "min_rr": 1.8,
+    "consecutive_loss_pause_count": 3,
+    "consecutive_loss_pause_hours": 24,
+    "fee": {
+      "taker_pct": 0.05,
+      "maker_pct": 0.02,
+      "max_fee_share_of_risk": 0.22,
+      "_note": "周期越短，手续费占单笔风险的比例越高：按 0.35% 止损算，吃单来回0.10%相当于吃掉28.6%的风险，必须用挂单(maker)把成本压到0.04%(=11.4%)。max_fee_share_of_risk 就是这条硬门槛。请在 OKX 费率等级页核对你的真实档位。"
+    },
+    "forbidden": [
+      "martingale",
+      "averaging_down",
+      "no_stop_loss",
+      "widening_stop",
+      "revenge_trading"
+    ]
+  },
+  "symbols": [
+    {
+      "instId": "SOL-USDT-SWAP",
+      "ccy": "SOL",
+      "index": "SOL-USDT",
+      "ctVal": 1,
+      "lotSz": 0.01,
+      "minSz": 0.01,
+      "tickSz": 0.01
+    }
+  ],
+  "playbooks": {
+    "scalp_5m": {
+      "enabled": true,
+      "label": "日内·5m快线",
+      "primary": "5m",
+      "filter": "15m",
+      "bias": "1H",
+      "expiry_min": 15,
+      "max_hold_hours": 8,
+      "no_overnight": true,
+      "min_score": 70,
+      "stop_atr": 1.0,
+      "min_stop_pct": 0.30,
+      "max_stop_pct": 1.20,
+      "min_rr": 1.8,
+      "risk_scale": 1.0,
+      "entry_style": "maker",
+      "_note": "周期最短的一档：入场看5m，趋势过滤看15m，方向偏好看1H。因噪音大，分数线(70)高于波段，且必须用挂单进场以压低手续费占比。"
+    },
+    "swing_1h4h": {
+      "enabled": true,
+      "label": "波段·1H/4H",
+      "primary": "1H",
+      "filter": "4H",
+      "bias": "4H",
+      "expiry_min": 180,
+      "max_hold_hours": 72,
+      "no_overnight": false,
+      "min_score": 62,
+      "stop_atr": 1.0,
+      "min_stop_pct": 0.80,
+      "max_stop_pct": 3.50,
+      "min_rr": 2.0,
+      "risk_scale": 1.0,
+      "entry_style": "maker",
+      "_note": "止损更宽(≥0.80%)，手续费占比自然更低，允许更长时间持有。"
+    }
+  },
+  "data": {
+    "poll_seconds": {
+      "orderbook": 5,
+      "ticker": 5,
+      "open_interest": 15,
+      "funding": 60,
+      "candles": 60,
+      "rubik": 300,
+      "sentiment": 600,
+      "onchain": 900,
+      "macro": 1800,
+      "calendar": 3600
+    },
+    "depth_levels": 400,
+    "history_days": 30,
+    "critical_sources": [
+      "ticker", "order_book", "candles_5m", "candles_15m", "candles_1H", "candles_4H",
+      "open_interest", "funding_rate", "taker_volume_5m", "liquidations"
+    ],
+    "_critical_note": "关键源缺失/过期 → 直接拒发信号（宁可不做）。其余为辅助源：缺失只会告警并提高触发分数线，不会让系统整体瘫痪。",
+    "stale_seconds": {
+      "_note": "每个数据集允许的最大年龄。K线按'开盘时刻'计龄，故上限必须大于该周期长度本身。",
+      "ticker": 60,
+      "order_book": 45,
+      "trades": 120,
+      "mark_price": 60,
+      "index_ticker": 60,
+      "price_limit": 300,
+      "instruments": 604800,
+      "candles_5m": 420,
+      "candles_15m": 1800,
+      "candles_1H": 5400,
+      "candles_4H": 21600,
+      "funding_rate": 300,
+      "funding_history": 36000,
+      "open_interest": 120,
+      "liquidations": 3600,
+      "index_components": 120,
+      "taker_volume_5m": 1200,
+      "taker_volume_1H": 7200,
+      "oi_volume_5m": 1200,
+      "oi_volume_1H": 7200,
+      "ls_account_ratio_5m": 1200,
+      "ls_top_pos_ratio_5m": 1200,
+      "margin_loan_ratio_5m": 1200,
+      "fear_greed": 93600,
+      "coingecko_global": 3600,
+      "defillama_solana_tvl": 180000,
+      "stablecoin_liquidity": 7200,
+      "solana_rpc_health": 600,
+      "cnbc_macro": 7200,
+      "economic_calendar": 28800,
+      "kraken_spot": 300,
+      "coinbase_spot": 300
+    }
+  },
+  "macro": {
+    "blackout_minutes_before": 30,
+    "blackout_minutes_after": 30,
+    "block_impact": ["High"],
+    "block_currencies": ["USD"],
+    "cnbc_symbols": {
+      "US10Y": "美债10年收益率",
+      ".SPX": "标普500",
+      ".VIX": "VIX恐慌指数",
+      ".DXY": "美元指数",
+      "@GC.1": "黄金"
+    }
+  },
+  "notify": {
+    "dashboard": true,
+    "dashboard_port": 8787,
+    "desktop_toast": true,
+    "csv_log": true,
+    "sound": true
+  }
+}

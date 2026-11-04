@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOL 信号系统 · 实时面板</title>
+<style>
+  :root{--bg:#0e1117;--card:#161b22;--line:#242c37;--fg:#e6edf3;--dim:#8b949e;
+        --ok:#3fb950;--bad:#f85149;--warn:#d29922;--acc:#58a6ff;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:13px/1.5 "Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+  .wrap{max-width:1400px;margin:0 auto;padding:14px}
+  header{display:flex;flex-wrap:wrap;align-items:baseline;gap:14px;
+         border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:12px}
+  h1{font-size:16px;margin:0;font-weight:600}
+  .big{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+  .up{color:var(--ok)} .down{color:var(--bad)} .dim{color:var(--dim)}
+  .grid{display:grid;gap:10px}
+  .g4{grid-template-columns:repeat(auto-fit,minmax(215px,1fr))}
+  .g3{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(420px,1fr))}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+  .card h3{margin:0 0 8px;font-size:12px;color:var(--dim);font-weight:600;
+           text-transform:uppercase;letter-spacing:.4px}
+  .kv{display:flex;justify-content:space-between;gap:8px;padding:2px 0;
+      border-bottom:1px dashed #1d242e}
+  .kv:last-child{border-bottom:none}
+  .kv b{font-weight:600;font-variant-numeric:tabular-nums}
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  th,td{text-align:right;padding:4px 6px;border-bottom:1px solid #1d242e;white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--dim);font-weight:600;font-size:11px}
+  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;
+         border:1px solid var(--line)}
+  .b-ok{background:#0d2a16;color:var(--ok);border-color:#1c4a29}
+  .b-bad{background:#2d1214;color:var(--bad);border-color:#5c1f22}
+  .b-warn{background:#2b2208;color:var(--warn);border-color:#5c4a12}
+  .b-acc{background:#0d1f33;color:var(--acc);border-color:#1c3a5c}
+  .sig{border:2px solid var(--ok);border-radius:10px;padding:14px;margin-bottom:12px;
+       background:linear-gradient(180deg,#0f2417,#161b22)}
+  .sig.short{border-color:var(--bad);background:linear-gradient(180deg,#2a1214,#161b22)}
+  .sig .row{display:flex;flex-wrap:wrap;gap:18px;margin-top:8px}
+  .sig .cell{min-width:96px}
+  .sig .cell span{display:block;color:var(--dim);font-size:11px}
+  .sig .cell b{font-size:17px;font-variant-numeric:tabular-nums}
+  .cand{border:1px solid var(--line);border-radius:8px;padding:9px;margin-bottom:8px;background:#12171e}
+  .cand.hit{border-color:#2e6b3c}
+  .conds{margin-top:6px;columns:2;column-gap:16px;font-size:12px}
+  .cond{break-inside:avoid;padding:2px 0}
+  .yes{color:var(--ok)} .no{color:var(--bad)}
+  .bar{height:6px;background:#20262e;border-radius:3px;overflow:hidden;margin-top:5px}
+  .bar i{display:block;height:100%;background:var(--acc)}
+  .dep{display:flex;height:16px;border-radius:3px;overflow:hidden;margin:2px 0 6px}
+  .dep i{display:block}
+  .note{color:var(--dim);font-size:11px}
+  pre{white-space:pre-wrap;word-break:break-word;margin:0;font-size:11px;color:var(--dim)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>SOL 信号系统</h1>
+    <div class="big" id="price">--</div>
+    <div id="chg" class="dim">--</div>
+    <div id="badges"></div>
+    <div style="margin-left:auto" class="note" id="updated">--</div>
+  </header>
+
+  <div id="signals"></div>
+
+  <div class="grid g4" id="facts"></div>
+  <div style="height:12px"></div>
+
+  <div class="card"><h3>多周期状态（结构 / 均线 / RSI / ATR）</h3>
+    <table id="tf"><thead><tr><th>周期</th><th>收盘</th><th>结构</th><th>均线排列</th>
+    <th>RSI14</th><th>ATR%</th><th>量比20<br><span class="note">未收盘按进度折算</span></th>
+    <th>区间位置</th><th>距VWAP</th><th>本根进度</th></tr></thead>
+    <tbody></tbody></table>
+    <div class="note" id="tfnote"></div>
+  </div>
+  <div style="height:12px"></div>
+
+  <div class="grid g2">
+    <div class="card"><h3>盘口深度与滑点（真实400档）</h3>
+      <div id="depth"></div>
+      <table id="slip"><thead><tr><th>名义金额</th><th>买滑点(bps)</th><th>卖滑点(bps)</th></tr></thead>
+      <tbody></tbody></table>
+    </div>
+    <div class="card"><h3>资金流 / 持仓 / 强平</h3><div id="flow"></div></div>
+    <div class="card"><h3>宏观 / 情绪 / 链上</h3><div id="macro"></div></div>
+  </div>
+  <div style="height:12px"></div>
+
+  <div class="grid g2">
+    <div class="card"><h3>候选信号评分（加权多因子，未达线也会显示缺什么）</h3>
+      <div id="cands"></div></div>
+    <div class="card"><h3>风控台账 / 交易统计</h3><div id="risk"></div></div>
+  </div>
+  <div style="height:12px"></div>
+
+  <div class="card"><h3>数据源时间戳（证明每条数据都带真实交易时间）</h3>
+    <table id="src"><thead><tr><th>数据源</th><th>状态</th><th>数据源时间(UTC)</th>
+    <th>抓取时刻</th><th>年龄(s)</th><th>条目</th></tr></thead><tbody></tbody></table>
+  </div>
+  <div style="height:12px"></div>
+
+  <div class="card"><h3>最近信号</h3><table id="hist">
+    <thead><tr><th>时间(UTC)</th><th>玩法</th><th>方向</th><th>等级</th><th>入场</th>
+    <th>止损</th><th>TP1</th><th>手数</th><th>真实风险(u)</th><th>有效期至</th></tr></thead>
+    <tbody></tbody></table></div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const f = (x,n=2) => (x===null||x===undefined||isNaN(x)) ? '--' : Number(x).toFixed(n);
+const cls = x => x>0 ? 'up' : x<0 ? 'down' : 'dim';
+const esc = s => String(s??'').replace(/[<>&]/g, c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+function kv(k,v,c=''){return `<div class="kv"><span class="dim">${k}</span><b class="${c}">${v}</b></div>`}
+
+async function tick(){
+  let d;
+  try{ d = await (await fetch('/api/state',{cache:'no-store'})).json(); }
+  catch(e){ $('#updated').textContent = '读取失败: '+e; return; }
+  if(d.error){ $('#updated').textContent = d.error; return; }
+  const s = d.snapshot||{}, fct = s.facts||{}, fx = s.features||{}, h = s.health||{},
+        ev = d.eval||{}, rk = d.risk||{};
+
+  $('#price').textContent = f(fct.price,3);
+  $('#chg').textContent = `${f(fct.chg24h_pct,2)}% 24h`;
+  $('#chg').className = cls(fct.chg24h_pct);
+  $('#updated').textContent = `更新 ${s.generated_at_utc} UTC ｜ 漂移 ${(s.server_sync||{}).offset_ms}ms ｜ 复用缓存 ${s.reused_sources}`;
+  $('#badges').innerHTML =
+    `<span class="badge ${h.usable?'b-ok':'b-bad'}">数据${h.usable?'可用':'不可用'} ${h.ok}源</span> `
+    + (h.degraded?`<span class="badge b-warn">辅助源降级 ${(h.advisory_missing||[]).length+(h.advisory_stale||[]).length}</span> `:'')
+    + `<span class="badge ${ev.gates&&ev.gates.pass?'b-ok':'b-warn'}">闸门${ev.gates&&ev.gates.pass?'通过':'拦截'}</span> `
+    + `<span class="badge ${(rk.realized_pnl_today||0)>=0?'b-ok':'b-bad'}">今日 ${f(rk.realized_pnl_today,2)}u</span>`;
+
+  // 信号
+  const sigs = ev.signals||[];
+  $('#signals').innerHTML = sigs.map(sg=>{
+    const long = sg.side==='long';
+    return `<div class="sig ${long?'':'short'}">
+      <div><b style="font-size:15px">${long?'做多':'做空'} ${esc(sg.instId)} · ${esc(sg.playbook)}</b>
+      <span class="badge b-acc">${sg.grade}级 ${sg.score}分</span>
+      <span class="note"> 有效期至 ${sg.expires_at_utc} UTC（超时作废）</span></div>
+      <div class="row">
+        <div class="cell"><span>入场(${esc(sg.entry_type||'')})</span><b>${f(sg.entry,3)}</b></div>
+        <div class="cell"><span>止损 (${sg.stop_pct}%)</span><b class="down">${f(sg.stop,3)}</b></div>
+        <div class="cell"><span>止盈1 毛RR ${sg.rr1}</span><b class="up">${f(sg.tp1,3)}</b></div>
+        <div class="cell"><span>净RR(扣费)</span><b class="${(sg.net_rr1||0)>=1.55?'up':'down'}">${sg.net_rr1}</b></div>
+        <div class="cell"><span>止盈2</span><b class="up">${f(sg.tp2,3)}</b></div>
+        <div class="cell"><span>手数(张)</span><b>${sg.qty}</b></div>
+        <div class="cell"><span>名义</span><b>${sg.notional_usd}u</b></div>
+        <div class="cell"><span>实际杠杆</span><b>${sg.leverage_used}x</b></div>
+        <div class="cell"><span>手续费占风险</span><b>${f((sg.fee_share_of_risk||0)*100,1)}%</b></div>
+        <div class="cell"><span>真实风险</span><b>${sg.effective_risk_usd}u</b></div>
+      </div>
+      <div class="conds" style="margin-top:10px">${(sg.evidence||[]).map(e=>
+        `<div class="cond ${e['满足']?'yes':'no'}">${e['满足']?'✔':'✘'} ${esc(e['条件'])} <span class="note">${esc(e['实测值'])}</span></div>`).join('')}</div>
+      <div class="note" style="margin-top:8px">失效条件：${(sg.invalidation||[]).map(esc).join('；')}</div>
+    </div>`}).join('');
+
+  // 关键事实
+  const book = fx.book||{}, bands = book.bands||{}, liq = (fx.liquidation||{}).w15||{},
+        tk = fx.taker_5m||{}, t3 = tk['3bars']||{}, lb = tk.last_bar||{},
+        oi = fx.oi||{}, oi5 = oi['5m']||{}, fund = fx.funding||{};
+  $('#facts').innerHTML = [
+    `<div class="card"><h3>价格 / 波动</h3>
+      ${kv('最新价',f(fct.price,3))}${kv('日内区间',`${f(fct.low24h,2)} ~ ${f(fct.high24h,2)}`)}
+      ${kv('买卖价差',f(book.spread_bps,2)+' bps')}${kv('100u滑点',f(fct.slippage_buy_100u_bps,2)+' bps')}
+      ${kv('ATR15',f(fct.atr_pct_15m,3)+' %')}${kv('24h量',f((fct.vol24h_base||0)/1e6,2)+' M SOL')}</div>`,
+    `<div class="card"><h3>资金费率 / 持仓</h3>
+      ${kv('当期费率',f(fct.funding_pct,5)+' %')}${kv('费率历史分位',f(fund.hist_pct_rank,0)+' %')}
+      ${kv('近3期累计',f(fund.last3_cum_pct,5)+' %')}
+      ${kv('持仓量',f((fct.oi_usd||0)/1e6,1)+' M USD')}
+      ${kv('15m变化',f(oi5['3bars_pct'],3)+' %',cls(oi5['3bars_pct']))}
+      ${kv('1h变化',f(oi5['12bars_pct'],3)+' %',cls(oi5['12bars_pct']))}</div>`,
+    `<div class="card"><h3>主动买卖流（Rubik实测）</h3>
+      ${kv('15m 买占比',f(t3.buy_ratio,3))}${kv('15m 净额',f((t3.net_usd||0)/1e3,1)+' k u',cls(t3.net_usd))}
+      ${kv('最新5m 买占比',f(lb.buy_ratio,3))}${kv('15m 强平额',f((liq.total_usd||0)/1e3,1)+' k u')}
+      ${kv('强平多头占比',f(liq.long_share,2))}${kv('大盘口失衡(0.5%)',f((bands['0.5%']||{}).imbalance,3))}</div>`,
+    `<div class="card"><h3>宏观 / 情绪 / 链上</h3>
+      ${kv('风险状态',esc(fct.risk_regime))}${kv('VIX',f(fct.vix,2))}
+      ${kv('恐慌贪婪',`${fct.fng} ${esc(fct.fng_label)}`)}
+      ${kv('封锁窗口',fct.macro_blackout?'是':'否',fct.macro_blackout?'down':'')}
+      ${kv('Solana TPS',f((fx.onchain||{}).solana?.tps,0))}
+      ${kv('稳定币7d',f(((fx.onchain||{}).stablecoins||{}).chg7d_usd/1e9,2)+' B')}</div>`
+  ].join('');
+
+  // 多周期表
+  const names={'5m':'5m','15m':'15m','1H':'1H','4H':'4H'};
+  $('#tf tbody').innerHTML = Object.entries(names).map(([k,label])=>{
+    const t = (fx.tf||{})[k]||{};
+    if(!t.ok) return `<tr><td>${label}</td><td colspan="8" class="dim">${esc(t.reason||'无数据')}</td></tr>`;
+    return `<tr><td>${label}${t.bar_confirmed?'':'<span class="badge b-warn">未收盘</span>'}</td>
+      <td>${f(t.close,3)}</td><td>${esc((t.structure||{}).structure)}</td>
+      <td>${esc(t.ema_stack)}</td><td>${f(t.rsi14,1)}</td><td>${f(t.atr_pct,3)}</td>
+      <td>${f(t.vol_ratio20,2)}${t.bar_confirmed?'':` <span class="note">(原${f(t.vol_ratio20_raw,2)})</span>`}</td>
+      <td>${f(t.donchian_pos,2)}</td><td>${f(t.px_vs_vwap_pct,2)}%</td>
+      <td>${t.bar_progress!=null?f(t.bar_progress*100,0)+'%':'--'}</td></tr>`;
+  }).join('');
+  $('#tfnote').textContent = `1H/4H 只用已收盘K线，避免重绘；15m VWAP = ${f(((fx.tf||{})['15m']||{}).vwap_day,3)}；`
+    + `未收盘K线的量比已按已过去时间比例折算（否则开盘瞬间量比恒为极小值，放量条件永远无法触发）`;
+
+  // 深度
+  if(book.ok){
+    const order=['0.1%','0.25%','0.5%','1.0%','2.0%'];
+    $('#depth').innerHTML = order.map(b=>{
+      const x=bands[b]||{}, tot=(x.bid_usd||0)+(x.ask_usd||0);
+      const bp=tot?(x.bid_usd/tot*100):50;
+      return `<div class="kv"><span class="dim">±${b} 买卖挂单</span>
+        <b>${f((x.bid_usd||0)/1e3,0)}k / ${f((x.ask_usd||0)/1e3,0)}k u ·
+        失衡 ${f(x.imbalance,3)}</b></div>
+        <div class="dep"><i style="width:${bp}%;background:#2e6b3c"></i>
+        <i style="width:${100-bp}%;background:#7a2b30"></i></div>`;
+    }).join('') + `<div class="note">买墙 ${f((book.wall_bid||{}).px,3)} (${f((book.wall_bid||{}).dist_pct,2)}%)
+      ｜ 卖墙 ${f((book.wall_ask||{}).px,3)} (${f((book.wall_ask||{}).dist_pct,2)}%)
+      ｜ 微价偏移 ${f(book.micro_vs_mid_bps,2)}bps</div>`;
+    $('#slip tbody').innerHTML = Object.keys(book.slippage_buy||{}).map(n=>{
+      const b=(book.slippage_buy||{})[n]||{}, s=(book.slippage_sell||{})[n]||{};
+      return `<tr><td>${n}u</td><td>${f(b.slippage_bps,2)}</td><td>${f(s.slippage_bps,2)}</td></tr>`;
+    }).join('');
+  }
+
+  // 资金流细节
+  const pos = fx.positioning||{}, basis = fx.basis||{}, tape = fx.tape||{};
+  $('#flow').innerHTML =
+    kv('全账户多空比',f((pos.account||{}).latest,3)) +
+    kv('大户持仓多空比',f((pos.top_trader_position||{}).latest,3)) +
+    kv('杠杆借币比',f((pos.margin_loan||{}).latest,3)) +
+    kv('近端成交主动买占比',f(tape.buy_ratio,3)) +
+    kv('近端CVD',f(tape.cvd,2),cls(tape.cvd)) +
+    Object.entries(basis).filter(([k])=>k!=='_spread_bps')
+      .map(([k,v])=>kv('对'+k+'基差',f(v.basis_bps,2)+' bps')).join('') +
+    `<div class="note">Rubik 时间戳为区间结束时刻，与K线相差一个周期，已在代码中对齐。</div>`;
+
+  // 宏观细节
+  const mac = fx.macro||{}, q = mac.quotes||{}, cg = (fx.sentiment||{}).coingecko||{};
+  $('#macro').innerHTML =
+    Object.entries(q).map(([k,v])=>kv(k+' '+(v.name||''),`${f(v.last,3)} (${f(v.change_pct,2)}%)`,
+      cls(v.change_pct))).join('') +
+    kv('全局市值24h',f(cg.mcap_change24h_pct,2)+'%',cls(cg.mcap_change24h_pct)) +
+    kv('BTC占比',f(cg.btc_dominance,1)+'%') +
+    kv('Solana TVL 7d',f(((fx.onchain||{}).solana_tvl||{}).chg7d_pct,2)+'%') +
+    (mac.upcoming_high_impact||[]).slice(0,3).map(e=>
+      kv('事件 '+e.utc.slice(5,16),`${e.country} ${e.title}`)).join('');
+
+  // 候选
+  $('#cands').innerHTML = (ev.candidates||[]).map(c=>{
+    const hit = c.passed;
+    const prem = c.required_ok !== false;
+    const miss = (c.conds||[]).filter(x=>!x.ok).length;
+    const tag = hit ? '<span class="badge b-acc">已触发</span>'
+      : (!prem ? `<span class="badge b-bad">前提未成立：${(c.missing_required||[]).map(esc).join('、')}</span>`
+               : `<span class="note"> 还差 ${miss} 个条件</span>`);
+    return `<div class="cand ${hit?'hit':''}">
+      <div><b>${esc(c.kind)}</b> <span class="badge ${c.side==='long'?'b-ok':'b-bad'}">${c.side==='long'?'做多':'做空'}</span>
+        <span class="badge ${c.passed_score?'b-ok':'b-warn'}">${c.score} / 需${c.min_score}分</span>
+        <span class="badge ${c.passed_rr?'b-ok':'b-warn'}">净RR ${c.net_rr??'--'}</span>
+        <span class="badge b-warn" title="手续费占单笔风险的比例">费 ${f((c.cost_r||0)*100,1)}%R</span>
+        ${tag}</div>
+      <div class="bar"><i style="width:${Math.min(100,c.score)}%"></i></div>
+      <div class="conds">${(c.conds||[]).map(x=>
+        `<div class="cond ${x.ok?'yes':'no'}">${x.ok?'✔':'✘'} ${x.required?'【前提】':''}${esc(x.name)} <span class="note">${esc(x.detail)}</span></div>`).join('')}</div>
+    </div>`}).join('') || '<div class="dim">无候选</div>';
+  const rej = ev.rejected||[];
+  if(rej.length) $('#cands').innerHTML += '<h3 style="margin-top:10px">评分达标但被仓位规则否决</h3>' +
+    rej.map(r=>`<div class="no">✘ ${esc(r.kind)} ${r.side}: ${esc(r.reason)}</div>`).join('');
+  const g = ev.gates||{};
+  if(g.reasons&&g.reasons.length) $('#cands').innerHTML += '<h3 style="margin-top:10px">闸门拦截原因</h3>' +
+    g.reasons.map(r=>`<div class="no">✘ ${esc(r)}</div>`).join('');
+  if(g.warnings&&g.warnings.length) $('#cands').innerHTML +=
+    g.warnings.map(r=>`<div class="note">⚠ ${esc(r)}</div>`).join('');
+
+  // 风控
+  const stt = d.stats||{};
+  $('#risk').innerHTML =
+    kv('当前净值',f(rk.equity_estimate,2)+' u') +
+    kv('今日已实现',f(rk.realized_pnl_today,2)+' u',cls(rk.realized_pnl_today)) +
+    kv('单日亏损上限','-'+f(rk.daily_loss_limit_usd,2)+' u') +
+    kv('今日开仓次数',`${rk.entries_today??0} / ${rk._max_entries??2}`) +
+    kv('连续亏损',rk.consecutive_losses??0) +
+    kv('当前持仓',((rk.open_positions||[]).length)+' 个') +
+    kv('熔断',rk.halted?'已开启':'未开启',rk.halted?'down':'ok') +
+    `<div class="note" style="margin-top:8px">已回填成交统计</div>` +
+    kv('成交笔数',stt.trades??0) + kv('胜率',f(stt.win_rate_pct,1)+'%') +
+    kv('累计盈亏',f(stt.total_pnl_usd,2)+' u',cls(stt.total_pnl_usd)) +
+    kv('盈亏比',stt.profit_factor??'--') + kv('期望R',stt.expectancy_r??'--') +
+    `<div class="note">信号模式下系统不知道你的真实成交价，必须回填才能统计：
+      <code>run.cmd --record 信号ID --exit 平仓价</code></div>`;
+
+  // 数据源
+  const ages = h.ages_s||{};
+  $('#src tbody').innerHTML = Object.entries(s.sources||{}).map(([k,v])=>{
+    const a = ages[k];
+    const okb = v.ok ? (a===null?'<span class="badge b-ok">新鲜</span>':'<span class="badge b-ok">正常</span>')
+                     : '<span class="badge b-bad">失败</span>';
+    return `<tr><td>${esc(k)}</td><td>${okb}</td><td>${esc(v.source_utc)||'--'}</td>
+      <td class="dim">${v.fetched_at_ms?new Date(v.fetched_at_ms).toISOString().slice(11,19):'--'}</td>
+      <td>${a??'--'}</td><td>${v.n??0}</td></tr>`;
+  }).join('');
+
+  // 历史信号
+  $('#hist tbody').innerHTML = (d.recent_signals||[]).slice().reverse().map(sg=>
+    `<tr><td>${esc(sg.generated_at_utc)}</td><td>${esc(sg.playbook)}</td>
+     <td class="${sg.side==='long'?'up':'down'}">${sg.side==='long'?'多':'空'}</td>
+     <td>${esc(sg.grade)}</td><td>${f(sg.entry,3)}</td><td>${f(sg.stop,3)}</td>
+     <td>${f(sg.tp1,3)}</td><td>${sg.qty}</td><td>${sg.effective_risk_usd}</td>
+     <td class="dim">${esc(sg.expires_at_utc)}</td></tr>`).join('') ||
+    '<tr><td colspan="10" class="dim">尚无信号</td></tr>';
+}
+tick(); setInterval(tick, 5000);
+</script>
+</body>
+</html>
