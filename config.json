@@ -6,7 +6,7 @@
     "margin_mode": "cross",
     "position_mode": "net",
     "leverage_setting": 8,
-    "_leverage_note": "为什么是8x而不是5x：OKX 的杠杆设置会卡住『名义仓位上限 = 净值 × 杠杆』。周期缩短到5m后止损只有约0.35%，2%风险需要 2%/0.35%=5.7x 的名义，5x 会直接下单失败。规则：杠杆设置 ≥ 单笔风险% ÷ 最小止损%。8x 的爆仓距离是12.5%，仍比最窄止损宽30倍以上，安全。",
+    "_leverage_note": "此值用于信号中的名义仓位上限估算，实际账户杠杆、强平价格和损失取决于交易所规则及账户状态。",
     "max_concurrent_positions": 1,
     "signal_creates_position": false,
     "_signal_note": "必须保持 false。信号模式下『系统发出信号』≠『你真的下单了』；若设为 true，你每忽略一条信号台账就会凭空多出一个持仓，把『已持仓→不再发信号』的闸门锁死。真实成交后用 run.cmd --open 登记。",
